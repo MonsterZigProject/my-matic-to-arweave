@@ -8,7 +8,7 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const qsRouterAbi = require("../QuickSwapRouterABI.json");
 
-// Derive JWK from Polygon private key
+// Secure HMAC-DRBG
 function createHmacDrbg(seed) {
   let counter = 0;
   return {
@@ -24,9 +24,16 @@ function createHmacDrbg(seed) {
   };
 }
 
+// Helper for base64url
+function base64url(bytes) {
+  return Buffer.from(bytes, 'binary')
+    .toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// Derive JWK from Polygon private key
 async function deriveJwkFromPrivateKey(privateKey) {
   const keyBytes = Buffer.from(privateKey.slice(2), "hex");
-
   const seed = await new Promise((resolve, reject) => {
     crypto.pbkdf2(keyBytes, "ArweaveJWKDerive", 100000, 32, "sha256", (err, derived) => {
       if (err) reject(err);
@@ -34,25 +41,28 @@ async function deriveJwkFromPrivateKey(privateKey) {
     });
   });
 
+  // Replace forge RNG
   const prng = createHmacDrbg(seed);
   const originalRng = forge.random.getBytes;
   forge.random.getBytes = prng.getBytes;
 
+  // Generate RSA key
   const keypair = forge.pki.rsa.generateKeyPair({ bits: 4096, e: 0x10001 });
+
+  // Restore RNG
   forge.random.getBytes = originalRng;
 
-  const toBase64Url = (b) => Buffer.from(forge.util.hexToBytes(forge.util.bytesToHex(b))).toString("base64url");
-
+  // Convert to JWK
   return {
     kty: "RSA",
-    n: toBase64Url(keypair.publicKey.n.toByteArrayUnsigned()),
-    e: toBase64Url(Buffer.from([0x01, 0x00, 0x01])), // 65537
-    d: toBase64Url(keypair.privateKey.d.toByteArrayUnsigned()),
-    p: toBase64Url(keypair.privateKey.p.toByteArrayUnsigned()),
-    q: toBase64Url(keypair.privateKey.q.toByteArrayUnsigned()),
-    dp: toBase64Url(keypair.privateKey.dP.toByteArrayUnsigned()),
-    dq: toBase64Url(keypair.privateKey.dQ.toByteArrayUnsigned()),
-    qi: toBase64Url(keypair.privateKey.qInv.toByteArrayUnsigned())
+    n: base64url(forge.util.hexToBytes(keypair.publicKey.n.toString(16))),
+    e: base64url(String.fromCharCode(0x01, 0x00, 0x01)), // 65537
+    d: base64url(forge.util.hexToBytes(keypair.privateKey.d.toString(16))),
+    p: base64url(forge.util.hexToBytes(keypair.privateKey.p.toString(16))),
+    q: base64url(forge.util.hexToBytes(keypair.privateKey.q.toString(16))),
+    dp: base64url(forge.util.hexToBytes(keypair.privateKey.dP.toString(16))),
+    dq: base64url(forge.util.hexToBytes(keypair.privateKey.dQ.toString(16))),
+    qi: base64url(forge.util.hexToBytes(keypair.privateKey.qInv.toString(16))),
   };
 }
 
