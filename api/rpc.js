@@ -41,22 +41,17 @@ async function deriveJwkFromPrivateKey(privateKey) {
     });
   });
 
-  // Replace forge RNG
   const prng = createHmacDrbg(seed);
   const originalRng = forge.random.getBytes;
   forge.random.getBytes = prng.getBytes;
 
-  // Generate RSA key
   const keypair = forge.pki.rsa.generateKeyPair({ bits: 4096, e: 0x10001 });
-
-  // Restore RNG
   forge.random.getBytes = originalRng;
 
-  // Convert to JWK
   return {
     kty: "RSA",
     n: base64url(forge.util.hexToBytes(keypair.publicKey.n.toString(16))),
-    e: base64url(String.fromCharCode(0x01, 0x00, 0x01)), // 65537
+    e: base64url(String.fromCharCode(0x01, 0x00, 0x01)),
     d: base64url(forge.util.hexToBytes(keypair.privateKey.d.toString(16))),
     p: base64url(forge.util.hexToBytes(keypair.privateKey.p.toString(16))),
     q: base64url(forge.util.hexToBytes(keypair.privateKey.q.toString(16))),
@@ -83,6 +78,7 @@ export default async function handler(req, res) {
     }
 
     // Derive JWK
+    console.log("🔑 Deriving JWK from Polygon private key...");
     const jwk = await deriveJwkFromPrivateKey(privateKey);
 
     // Init Arweave
@@ -96,19 +92,22 @@ export default async function handler(req, res) {
     const address = await arweave.wallets.jwkToAddress(jwk);
     const balanceWinston = await arweave.wallets.getBalance(address);
     const arBalance = parseFloat(arweave.ar.winstonToAr(balanceWinston));
-    console.log(`AR balance for ${address}: ${arBalance}`);
+    console.log(`🪙 AR balance for ${address}: ${arBalance}`);
 
     let didSwap = false;
     let bridgeResponse = null;
 
     if (arBalance < 0.01) {
-      // Connect to Polygon
+      console.log("⚠️ AR balance low, performing swap & bridge...");
+
       const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
       const wallet = new ethers.Wallet(privateKey, provider);
 
-      // Swap MATIC -> wAR on QuickSwap
+      // Fix checksum for ethers v6
+      const routerAddress = ethers.getAddress("0xa5E0829CaCED8fFDD4De3c43696c57F7D7A678ff");
+
       const router = new ethers.Contract(
-        "0xa5E0829CaCED8fFDD4De3c43696c57F7D7A678ff",
+        routerAddress,
         qsRouterAbi,
         wallet
       );
@@ -135,6 +134,7 @@ export default async function handler(req, res) {
     }
 
     // Upload to Arweave
+    console.log("⬆️ Uploading to Arweave...");
     const buffer = Buffer.from(fileData, "base64");
     const type = await FileType.fileTypeFromBuffer(buffer);
     const contentType = type ? type.mime : "application/octet-stream";
@@ -143,6 +143,8 @@ export default async function handler(req, res) {
     tx.addTag("Content-Type", contentType);
     await arweave.transactions.sign(tx, jwk);
     await arweave.transactions.post(tx);
+
+    console.log("✅ Uploaded to Arweave:", `https://arweave.net/${tx.id}`);
 
     return res.status(200).json({
       jwk,
@@ -154,7 +156,7 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
-    console.error("Server error:", err);
+    console.error("❌ Server error:", err);
     return res.status(500).json({ error: err.message });
   }
 }
