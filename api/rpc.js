@@ -22,27 +22,35 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing parameters" });
     }
 
-    const arweave = Arweave.init({ host: "arweave.net", port: 443, protocol: "https" });
+    // Init Arweave
+    const arweave = Arweave.init({
+      host: "arweave.net",
+      port: 443,
+      protocol: "https"
+    });
 
+    // Check AR balance
     const address = await arweave.wallets.jwkToAddress(jwk);
-    const winstonBalance = await arweave.wallets.getBalance(address);
-    const arBalance = parseFloat(arweave.ar.winstonToAr(winstonBalance));
-    console.log(`AR balance: ${arBalance}`);
+    const balanceWinston = await arweave.wallets.getBalance(address);
+    const arBalance = parseFloat(arweave.ar.winstonToAr(balanceWinston));
+    console.log(`AR balance for ${address}: ${arBalance}`);
 
     let didSwap = false;
-    let bridgeResult = null;
+    let bridgeResponse = null;
 
     if (arBalance < 0.01) {
+      // Connect to Polygon
       const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
       const wallet = new ethers.Wallet(privateKey, provider);
 
-      const quickswapRouter = new ethers.Contract(
+      // Swap MATIC -> wAR on QuickSwap
+      const router = new ethers.Contract(
         "0xa5E0829CaCED8fFDD4De3c43696c57F7D7A678ff",
         qsRouterAbi,
         wallet
       );
 
-      const tx = await quickswapRouter.swapExactETHForTokens(
+      const tx = await router.swapExactETHForTokens(
         0,
         ["0x0000000000000000000000000000000000001010", "0x7c9f4C87d911613Fe9ca58b579f737911AAD2D43"],
         wallet.address,
@@ -52,30 +60,32 @@ export default async function handler(req, res) {
       await tx.wait();
       console.log("✅ Swapped MATIC -> wAR");
 
-      bridgeResult = await axios.post("https://api.everpay.io/bridge", {
+      // Bridge wAR -> AR
+      bridgeResponse = await axios.post("https://api.everpay.io/bridge", {
         token: "AR",
         amount: warAmount,
         target: address
       });
-      console.log("✅ Bridged wAR -> AR:", bridgeResult.data);
+      console.log("✅ Bridged wAR -> AR:", bridgeResponse.data);
 
       didSwap = true;
     }
 
+    // Upload to Arweave
     const buffer = Buffer.from(fileData, "base64");
     const type = await FileType.fileTypeFromBuffer(buffer);
     const contentType = type ? type.mime : "application/octet-stream";
 
-    const arTx = await arweave.createTransaction({ data: buffer }, jwk);
-    arTx.addTag("Content-Type", contentType);
-    await arweave.transactions.sign(arTx, jwk);
-    await arweave.transactions.post(arTx);
+    const tx = await arweave.createTransaction({ data: buffer }, jwk);
+    tx.addTag("Content-Type", contentType);
+    await arweave.transactions.sign(tx, jwk);
+    await arweave.transactions.post(tx);
 
     return res.status(200).json({
-      result: `https://arweave.net/${arTx.id}`,
+      result: `https://arweave.net/${tx.id}`,
       contentType,
       usedSwap: didSwap,
-      bridge: bridgeResult ? bridgeResult.data : null
+      bridge: bridgeResponse ? bridgeResponse.data : null
     });
 
   } catch (err) {
