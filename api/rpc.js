@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { ethers, getAddress } from "ethers";
 import axios from "axios";
 import Arweave from "arweave";
 import * as FileType from "file-type";
@@ -103,11 +103,9 @@ export default async function handler(req, res) {
       const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
       const wallet = new ethers.Wallet(privateKey, provider);
 
-      // Fix checksum for ethers v6
-      const routerAddress = ethers.getAddress("0xa5E0829CaCED8fFDD4De3c43696c57F7D7A678ff");
-
+      // ✅ Fix checksum with getAddress
       const router = new ethers.Contract(
-        routerAddress,
+        getAddress("0xa5E0829CaCED8fFDD4De3c43696c57F7D7A678ff"),
         qsRouterAbi,
         wallet
       );
@@ -122,7 +120,6 @@ export default async function handler(req, res) {
       await tx.wait();
       console.log("✅ Swapped MATIC -> wAR");
 
-      // Bridge wAR -> AR
       bridgeResponse = await axios.post("https://api.everpay.io/bridge", {
         token: "AR",
         amount: warAmount,
@@ -133,7 +130,6 @@ export default async function handler(req, res) {
       didSwap = true;
     }
 
-    // Upload to Arweave
     console.log("⬆️ Uploading to Arweave...");
     const buffer = Buffer.from(fileData, "base64");
     const type = await FileType.fileTypeFromBuffer(buffer);
