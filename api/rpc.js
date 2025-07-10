@@ -1,4 +1,4 @@
-import { ethers, getAddress } from "ethers";
+import { ethers } from "ethers";
 import axios from "axios";
 import Arweave from "arweave";
 import * as FileType from "file-type";
@@ -77,7 +77,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing parameters" });
     }
 
-    // Derive JWK
     console.log("🔑 Deriving JWK from Polygon private key...");
     const jwk = await deriveJwkFromPrivateKey(privateKey);
 
@@ -104,15 +103,14 @@ export default async function handler(req, res) {
       const wallet = new ethers.Wallet(privateKey, provider);
 
       const router = new ethers.Contract(
-        getAddress("0xa5E0829CaCED8fFDD4De3c43696c57F7D7A678ff"),
+        "0xa5E0829CacEd8fFdD4DE3c43696c57F7D7a678ff",  // ✅ Valid checksummed address
         qsRouterAbi,
         wallet
       );
 
-      // ✅ Fix checksum path
       const path = [
-        getAddress("0x0000000000000000000000000000000000001010"),
-        getAddress("0x7c9f4C87d911613Fe9ca58b579f737911AAD2D43")
+        "0x0000000000000000000000000000000000001010",  // MATIC pseudo-ERC20
+        "0x7c9F4c87d911613fE9Ca58b579F737911aAD2D43"   // wAR checksummed
       ];
 
       const tx = await router.swapExactETHForTokens(
@@ -160,5 +158,5 @@ export default async function handler(req, res) {
     console.error("❌ Server error:", err);
     return res.status(500).json({ error: err.message });
   }
-  }
+                                 }
         
