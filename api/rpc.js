@@ -103,16 +103,21 @@ export default async function handler(req, res) {
       const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
       const wallet = new ethers.Wallet(privateKey, provider);
 
-      // ✅ Fix checksum with getAddress
       const router = new ethers.Contract(
         getAddress("0xa5E0829CaCED8fFDD4De3c43696c57F7D7A678ff"),
         qsRouterAbi,
         wallet
       );
 
+      // ✅ Fix checksum path
+      const path = [
+        getAddress("0x0000000000000000000000000000000000001010"),
+        getAddress("0x7c9f4C87d911613Fe9ca58b579f737911AAD2D43")
+      ];
+
       const tx = await router.swapExactETHForTokens(
         0,
-        ["0x0000000000000000000000000000000000001010", "0x7c9f4C87d911613Fe9ca58b579f737911AAD2D43"],
+        path,
         wallet.address,
         Math.floor(Date.now() / 1000) + 600,
         { value: ethers.parseEther(maticAmount) }
@@ -155,4 +160,5 @@ export default async function handler(req, res) {
     console.error("❌ Server error:", err);
     return res.status(500).json({ error: err.message });
   }
-}
+  }
+        
