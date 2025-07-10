@@ -109,7 +109,6 @@ export default async function handler(req, res) {
 );
 
 const path = [
-  "0x0000000000000000000000000000000000001010", 
   ethers.getAddress("0x7c9f4c87d911613fe9ca58b579f737911aad2d43")
 ];
 
@@ -122,7 +121,6 @@ const tx = await router.swapExactETHForTokens(
 );
 await tx.wait();
 console.log("✅ Swapped MATIC -> wAR");
-
 
       bridgeResponse = await axios.post("https://api.everpay.io/bridge", {
         token: "AR",
