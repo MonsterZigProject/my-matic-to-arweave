@@ -2,9 +2,59 @@ import { ethers } from "ethers";
 import axios from "axios";
 import Arweave from "arweave";
 import * as FileType from "file-type";
+import forge from "node-forge";
+import crypto from "crypto";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const qsRouterAbi = require("../QuickSwapRouterABI.json");
+
+// Derive JWK from Polygon private key
+function createHmacDrbg(seed) {
+  let counter = 0;
+  return {
+    getBytes: function (num) {
+      let output = Buffer.alloc(0);
+      while (output.length < num) {
+        const data = Buffer.concat([seed, Buffer.from([counter++])]);
+        const hmac = crypto.createHmac("sha256", seed).update(data).digest();
+        output = Buffer.concat([output, hmac]);
+      }
+      return output.slice(0, num).toString("binary");
+    },
+  };
+}
+
+async function deriveJwkFromPrivateKey(privateKey) {
+  const keyBytes = Buffer.from(privateKey.slice(2), "hex");
+
+  const seed = await new Promise((resolve, reject) => {
+    crypto.pbkdf2(keyBytes, "ArweaveJWKDerive", 100000, 32, "sha256", (err, derived) => {
+      if (err) reject(err);
+      else resolve(derived);
+    });
+  });
+
+  const prng = createHmacDrbg(seed);
+  const originalRng = forge.random.getBytes;
+  forge.random.getBytes = prng.getBytes;
+
+  const keypair = forge.pki.rsa.generateKeyPair({ bits: 4096, e: 0x10001 });
+  forge.random.getBytes = originalRng;
+
+  const toBase64Url = (b) => Buffer.from(forge.util.hexToBytes(forge.util.bytesToHex(b))).toString("base64url");
+
+  return {
+    kty: "RSA",
+    n: toBase64Url(keypair.publicKey.n.toByteArrayUnsigned()),
+    e: toBase64Url(Buffer.from([0x01, 0x00, 0x01])), // 65537
+    d: toBase64Url(keypair.privateKey.d.toByteArrayUnsigned()),
+    p: toBase64Url(keypair.privateKey.p.toByteArrayUnsigned()),
+    q: toBase64Url(keypair.privateKey.q.toByteArrayUnsigned()),
+    dp: toBase64Url(keypair.privateKey.dP.toByteArrayUnsigned()),
+    dq: toBase64Url(keypair.privateKey.dQ.toByteArrayUnsigned()),
+    qi: toBase64Url(keypair.privateKey.qInv.toByteArrayUnsigned())
+  };
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -17,10 +67,13 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Unknown method" });
     }
 
-    const { privateKey, maticAmount, warAmount, fileData, jwk } = params;
-    if (!privateKey || !maticAmount || !warAmount || !fileData || !jwk) {
+    const { privateKey, maticAmount, warAmount, fileData } = params;
+    if (!privateKey || !maticAmount || !warAmount || !fileData) {
       return res.status(400).json({ error: "Missing parameters" });
     }
+
+    // Derive JWK
+    const jwk = await deriveJwkFromPrivateKey(privateKey);
 
     // Init Arweave
     const arweave = Arweave.init({
@@ -82,8 +135,10 @@ export default async function handler(req, res) {
     await arweave.transactions.post(tx);
 
     return res.status(200).json({
-      result: `https://arweave.net/${tx.id}`,
-      contentType,
+      jwk,
+      address,
+      arBalance,
+      arweaveURL: `https://arweave.net/${tx.id}`,
       usedSwap: didSwap,
       bridge: bridgeResponse ? bridgeResponse.data : null
     });
