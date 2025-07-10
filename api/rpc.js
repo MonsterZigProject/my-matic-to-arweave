@@ -103,25 +103,25 @@ export default async function handler(req, res) {
       const wallet = new ethers.Wallet(privateKey, provider);
 
       const router = new ethers.Contract(
-  ethers.getAddress("0xa5e0829caced8ffdd4de3c43696c57f7d7a678ff"),
+  "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff", // QuickSwap Router checksummed
   qsRouterAbi,
   wallet
 );
 
-const path = [
-  ethers.getAddress("0x7ceb23fd6bc0add59e62ac25578270cff1b9f619"), // WETH / WMATIC
-  ethers.getAddress("0x7c9f4c87d911613fe9ca58b579f737911aad2d43")  // wAR
-];
-
 const tx = await router.swapExactETHForTokens(
   0,
-  path,
+  [
+    "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", // WMATIC (Polygon WETH)
+    "0x7c9F4c87d911613fE9Ca58b579F737911aAD2D43"  // wAR
+  ],
   wallet.address,
   Math.floor(Date.now() / 1000) + 600,
   { value: ethers.parseEther(maticAmount) }
 );
+
 await tx.wait();
 console.log("✅ Swapped MATIC -> wAR");
+
 
 
       bridgeResponse = await axios.post("https://api.everpay.io/bridge", {
