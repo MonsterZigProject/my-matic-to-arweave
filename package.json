@@ -1,0 +1,15 @@
+{
+  "name": "my-matic-to-arweave",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "vercel start"
+  },
+  "dependencies": {
+    "ethers": "^6.8.1",
+    "axios": "^1.4.0",
+    "arweave": "^1.12.2",
+    "file-type": "^18.4.0"
+  }
+}
