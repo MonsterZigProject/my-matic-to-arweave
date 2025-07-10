@@ -2,14 +2,11 @@
   "name": "my-matic-to-arweave",
   "version": "1.0.0",
   "type": "module",
-  "scripts": {
-    "dev": "vercel dev",
-    "start": "vercel start"
-  },
   "dependencies": {
     "ethers": "^6.8.1",
-    "axios": "^1.4.0",
-    "arweave": "^1.12.2",
-    "file-type": "^18.4.0"
+    "arweave": "^1.11.0",
+    "axios": "^1.6.0",
+    "file-type": "^18.0.0",
+    "node-forge": "^1.3.1"
   }
 }
