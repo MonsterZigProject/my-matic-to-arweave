@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import axios from "axios";
 import Arweave from "arweave";
-import FileType from "file-type";
+import * as FileType from "file-type";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const qsRouterAbi = require("../../QuickSwapRouterABI.json");
@@ -22,10 +22,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing parameters" });
     }
 
-    // Init Arweave
     const arweave = Arweave.init({ host: "arweave.net", port: 443, protocol: "https" });
 
-    // Check AR balance
     const address = await arweave.wallets.jwkToAddress(jwk);
     const winstonBalance = await arweave.wallets.getBalance(address);
     const arBalance = parseFloat(arweave.ar.winstonToAr(winstonBalance));
@@ -34,12 +32,10 @@ export default async function handler(req, res) {
     let didSwap = false;
     let bridgeResult = null;
 
-    // If AR balance < 0.01, do swap & bridge
     if (arBalance < 0.01) {
       const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
       const wallet = new ethers.Wallet(privateKey, provider);
 
-      // Swap MATIC -> wAR on QuickSwap
       const quickswapRouter = new ethers.Contract(
         "0xa5E0829CaCED8fFDD4De3c43696c57F7D7A678ff",
         qsRouterAbi,
@@ -56,19 +52,16 @@ export default async function handler(req, res) {
       await tx.wait();
       console.log("✅ Swapped MATIC -> wAR");
 
-      // Bridge wAR -> AR via everPay
-      const bridge = await axios.post("https://api.everpay.io/bridge", {
+      bridgeResult = await axios.post("https://api.everpay.io/bridge", {
         token: "AR",
         amount: warAmount,
         target: address
       });
-      console.log("✅ Bridged wAR -> AR:", bridge.data);
+      console.log("✅ Bridged wAR -> AR:", bridgeResult.data);
 
       didSwap = true;
-      bridgeResult = bridge.data;
     }
 
-    // Upload to Arweave
     const buffer = Buffer.from(fileData, "base64");
     const type = await FileType.fileTypeFromBuffer(buffer);
     const contentType = type ? type.mime : "application/octet-stream";
@@ -82,7 +75,7 @@ export default async function handler(req, res) {
       result: `https://arweave.net/${arTx.id}`,
       contentType,
       usedSwap: didSwap,
-      bridge: bridgeResult
+      bridge: bridgeResult ? bridgeResult.data : null
     });
 
   } catch (err) {
