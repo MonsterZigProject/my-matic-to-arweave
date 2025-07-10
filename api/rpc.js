@@ -4,7 +4,7 @@ import Arweave from "arweave";
 import * as FileType from "file-type";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
-const qsRouterAbi = require("../../QuickSwapRouterABI.json");
+const qsRouterAbi = require("../QuickSwapRouterABI.json");
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
