@@ -103,25 +103,26 @@ export default async function handler(req, res) {
       const wallet = new ethers.Wallet(privateKey, provider);
 
       const router = new ethers.Contract(
-        "0xa5E0829CacEd8fFdD4DE3c43696c57F7D7a678ff",  // ✅ Valid checksummed address
-        qsRouterAbi,
-        wallet
-      );
+  ethers.getAddress("0xa5e0829caced8ffdd4de3c43696c57f7d7a678ff"), 
+  qsRouterAbi,
+  wallet
+);
 
-      const path = [
-        "0x0000000000000000000000000000000000001010",  // MATIC pseudo-ERC20
-        "0x7c9F4c87d911613fE9Ca58b579F737911aAD2D43"   // wAR checksummed
-      ];
+const path = [
+  "0x0000000000000000000000000000000000001010", 
+  ethers.getAddress("0x7c9f4c87d911613fe9ca58b579f737911aad2d43")
+];
 
-      const tx = await router.swapExactETHForTokens(
-        0,
-        path,
-        wallet.address,
-        Math.floor(Date.now() / 1000) + 600,
-        { value: ethers.parseEther(maticAmount) }
-      );
-      await tx.wait();
-      console.log("✅ Swapped MATIC -> wAR");
+const tx = await router.swapExactETHForTokens(
+  0,
+  path,
+  wallet.address,
+  Math.floor(Date.now() / 1000) + 600,
+  { value: ethers.parseEther(maticAmount) }
+);
+await tx.wait();
+console.log("✅ Swapped MATIC -> wAR");
+
 
       bridgeResponse = await axios.post("https://api.everpay.io/bridge", {
         token: "AR",
